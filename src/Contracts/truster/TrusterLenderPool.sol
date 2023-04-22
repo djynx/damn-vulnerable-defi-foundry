@@ -20,6 +20,11 @@ contract TrusterLenderPool is ReentrancyGuard {
     constructor(address tokenAddress) {
         damnValuableToken = IERC20(tokenAddress);
     }
+    // check the balance from token side
+    // if not borrow amount > current token balance cont.
+    // transfer
+    // func call
+    // if balanceafter <
 
     function flashLoan(uint256 borrowAmount, address borrower, address target, bytes calldata data)
         external

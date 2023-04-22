@@ -30,6 +30,9 @@ contract UnstoppableLender is ReentrancyGuard {
         damnValuableToken.transferFrom(msg.sender, address(this), amount);
         poolBalance = poolBalance + amount;
     }
+    //
+    // pool balance must be equal to token balance of the lender
+    //
 
     function flashLoan(uint256 borrowAmount) external nonReentrant {
         if (borrowAmount == 0) revert MustBorrowOneTokenMinimum();
