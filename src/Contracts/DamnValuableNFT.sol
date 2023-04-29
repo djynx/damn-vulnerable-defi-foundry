@@ -29,7 +29,7 @@ contract DamnValuableNFT is ERC721, ERC721Burnable, AccessControl {
         return tokenId;
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override (ERC721, AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
